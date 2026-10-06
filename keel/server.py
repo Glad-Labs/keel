@@ -5,12 +5,17 @@ phone, put it behind `tailscale serve`: that keeps it private to your tailnet
 and gives the page the https a browser needs before it allows the microphone.
 Add that name to allowed_hosts in ~/.keel/config.toml.
 
-Two guards, because this server holds your journal:
+Three guards, because this server holds your journal:
 
 * The Host header must be one Keel expects, so a web page can't reach it by
   pointing its own domain at 127.0.0.1 (DNS rebinding).
 * API calls need an X-Keel header. A cross-site request can't send one
   without a preflight, and this server never approves preflights.
+* Anything that arrives through a proxy (`tailscale serve` adds forwarding
+  headers) must carry a Tailscale login listed in allowed_users. Tailscale
+  sets that header itself, so another device on the tailnet can't fake it.
+
+Use `tailscale serve`, never `tailscale funnel`: funnel puts it on the internet.
 """
 
 from __future__ import annotations
@@ -103,18 +108,34 @@ class Keel:
         }
 
 
+PROXY_HEADERS = ("X-Forwarded-For", "X-Forwarded-Host", "Forwarded", "Tailscale-User-Login")
+
+
+def _bare(host: str) -> str:
+    host = host.strip().lower()
+    return host[1:].split("]")[0] if host.startswith("[") else host.rsplit(":", 1)[0]
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "keel"
     keel: Keel
     allowed_hosts: set[str]
+    allowed_users: set[str]
 
     def log_message(self, fmt, *args):  # keep request lines out of the terminal
         pass
 
     def _host_ok(self) -> bool:
-        host = (self.headers.get("Host") or "").strip().lower()
-        host = host[1:].split("]")[0] if host.startswith("[") else host.rsplit(":", 1)[0]
-        return host in self.allowed_hosts
+        if _bare(self.headers.get("Host") or "") not in self.allowed_hosts:
+            return False
+        if any(self.headers.get(h) for h in PROXY_HEADERS):
+            # Came through tailscale serve: it has to be you.
+            forwarded = self.headers.get("X-Forwarded-Host")
+            if forwarded and _bare(forwarded) not in self.allowed_hosts:
+                return False
+            login = (self.headers.get("Tailscale-User-Login") or "").strip().lower()
+            return bool(login) and login in self.allowed_users
+        return True
 
     def _send(self, code: int, body: bytes, ctype: str) -> None:
         self.send_response(code)
@@ -181,8 +202,18 @@ class Handler(BaseHTTPRequestHandler):
         self._json(404, {"error": "not found"})
 
 
-def make_server(keel: Keel, host: str = "127.0.0.1", port: int = 8095, allowed_hosts=()) -> ThreadingHTTPServer:
-    handler = type("KeelHandler", (Handler,), {"keel": keel, "allowed_hosts": LOCAL_HOSTS | set(allowed_hosts)})
+def make_server(
+    keel: Keel, host: str = "127.0.0.1", port: int = 8095, allowed_hosts=(), allowed_users=()
+) -> ThreadingHTTPServer:
+    handler = type(
+        "KeelHandler",
+        (Handler,),
+        {
+            "keel": keel,
+            "allowed_hosts": LOCAL_HOSTS | {h.lower() for h in allowed_hosts},
+            "allowed_users": {u.lower() for u in allowed_users},
+        },
+    )
     server = ThreadingHTTPServer((host, port), handler)
     server.daemon_threads = True
     return server

@@ -191,7 +191,7 @@ def cmd_serve(cfg, args) -> int:
     print("Loading the speech models (on the CPU)...", flush=True)
     voice.warm(cfg.stt_model)
     keel = server.Keel(cfg, voice, voice=cfg.voice, stt_model=cfg.stt_model)
-    httpd = server.make_server(keel, args.host, args.port, cfg.allowed_hosts)
+    httpd = server.make_server(keel, args.host, args.port, cfg.allowed_hosts, cfg.allowed_users)
     print(f"Keel is listening at http://{args.host}:{args.port}/ (Ctrl-C to stop)", flush=True)
     try:
         httpd.serve_forever()

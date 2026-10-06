@@ -76,7 +76,7 @@ Every API call also needs an `X-Keel` header, which a cross-site request can't
 send. Browsers only allow the microphone on localhost or https, so using it from
 a phone means going through `tailscale serve`. That isn't set up yet.
 
-The voice is Kokoro's `af_heart`. Change it with `voice = "am_michael"` (or any of
+The voice is Kokoro's `af_bella`. Change it with `voice = "af_heart"` (or any of
 its 54 voices) in `~/.keel/config.toml`.
 
 ## How a reply is made

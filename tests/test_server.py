@@ -102,6 +102,21 @@ class ServerTests(unittest.TestCase):
         status, _ = self.post("/api/text?session=x", body, "application/json")
         self.assertEqual(status, 400, "bad session id")
 
+    def test_through_tailscale_it_has_to_be_you(self):
+        self.httpd.RequestHandlerClass.allowed_hosts = self.httpd.RequestHandlerClass.allowed_hosts | {"box.tail.ts.net"}
+        self.httpd.RequestHandlerClass.allowed_users = {"me@example.com"}
+        via = {"X-Forwarded-For": "100.64.0.7", "X-Forwarded-Host": "box.tail.ts.net:8095"}
+        status, _, _ = self.request("GET", "/", headers=via)
+        self.assertEqual(status, 403, "forwarded with no Tailscale login")
+        status, _, _ = self.request("GET", "/", headers={**via, "Tailscale-User-Login": "someone@else.com"})
+        self.assertEqual(status, 403, "someone else on the tailnet")
+        status, _, _ = self.request("GET", "/", headers={**via, "Tailscale-User-Login": "Me@Example.com"})
+        self.assertEqual(status, 200)
+        status, _, _ = self.request(
+            "GET", "/", headers={**via, "X-Forwarded-Host": "evil.example", "Tailscale-User-Login": "me@example.com"}
+        )
+        self.assertEqual(status, 403, "forwarded for a name we don't answer to")
+
     def test_it_only_listens_on_this_machine(self):
         self.assertEqual(cli.main(["--home", self._tmp.name, "serve", "--host", "0.0.0.0"]), 2)
 

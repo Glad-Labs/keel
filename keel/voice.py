@@ -19,7 +19,7 @@ os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
 
 STT_MODEL = "Systran/faster-whisper-medium"
 TTS_REPO = "speaches-ai/Kokoro-82M-v1.0-ONNX"
-TTS_VOICE = "af_heart"
+TTS_VOICE = "af_bella"
 CPU_THREADS = 8  # half the cores, leaving the rest for everything else
 
 _lock = threading.Lock()

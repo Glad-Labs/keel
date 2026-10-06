@@ -54,9 +54,10 @@ class Config:
     chat: Endpoint
     check: Endpoint
     embed_model: str | None
-    voice: str = "af_heart"
+    voice: str = "af_bella"
     stt_model: str = "Systran/faster-whisper-medium"
     allowed_hosts: tuple[str, ...] = ()
+    allowed_users: tuple[str, ...] = ()
 
     @property
     def db_path(self) -> Path:
@@ -89,10 +90,12 @@ DEFAULTS = {
     "embed_model": "BAAI/bge-small-en-v1.5",
     "allow_load": False,
     # Kokoro voice, and the Whisper model that hears you. Both run on the CPU.
-    "voice": "af_heart",
+    "voice": "af_bella",
     "stt_model": "Systran/faster-whisper-medium",
-    # Extra names the voice server answers to, e.g. your machine's tailscale name.
+    # Extra names the voice server answers to, e.g. your machine's tailscale name,
+    # and the Tailscale logins allowed to use it through `tailscale serve`.
     "allowed_hosts": [],
+    "allowed_users": [],
 }
 
 
@@ -113,9 +116,11 @@ def load(home: Path | str | None = None, **overrides) -> Config:
         embed_model = None
     num_ctx = int(values["num_ctx"])
     allow_load = str(values["allow_load"]).lower() in ("1", "true", "yes")
-    hosts = values["allowed_hosts"]
-    if isinstance(hosts, str):
-        hosts = [h for h in hosts.split(",") if h.strip()]
+    def as_list(value):
+        return [v for v in value.split(",") if v.strip()] if isinstance(value, str) else list(value)
+
+    hosts = as_list(values["allowed_hosts"])
+    users = as_list(values["allowed_users"])
     return Config(
         home=home,
         chat=Endpoint(require_local(values["chat_url"]), values["chat_model"], num_ctx, allow_load),
@@ -124,4 +129,5 @@ def load(home: Path | str | None = None, **overrides) -> Config:
         voice=values["voice"],
         stt_model=values["stt_model"],
         allowed_hosts=tuple(h.strip().lower() for h in hosts),
+        allowed_users=tuple(u.strip().lower() for u in users),
     )
