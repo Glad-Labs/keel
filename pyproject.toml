@@ -8,6 +8,8 @@ dependencies = []
 [project.optional-dependencies]
 # Search by meaning, on the CPU. Without it Keel searches by keyword.
 embed = ["fastembed>=0.4"]
+# Speech in and out, on the CPU. faster-whisper 1.2.1 fails on PyAV 19 (seen 2026-10-06); 15 works.
+voice = ["faster-whisper>=1.1", "kokoro-onnx>=0.4", "av>=11,<16"]
 
 [project.scripts]
 keel = "keel.cli:main"
@@ -20,4 +22,4 @@ build-backend = "setuptools.build_meta"
 packages = ["keel"]
 
 [tool.setuptools.package-data]
-keel = ["RULES.md"]
+keel = ["RULES.md", "web/*"]

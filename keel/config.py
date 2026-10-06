@@ -54,6 +54,9 @@ class Config:
     chat: Endpoint
     check: Endpoint
     embed_model: str | None
+    voice: str = "af_heart"
+    stt_model: str = "Systran/faster-whisper-medium"
+    allowed_hosts: tuple[str, ...] = ()
 
     @property
     def db_path(self) -> Path:
@@ -85,6 +88,11 @@ DEFAULTS = {
     "num_ctx": 16384,
     "embed_model": "BAAI/bge-small-en-v1.5",
     "allow_load": False,
+    # Kokoro voice, and the Whisper model that hears you. Both run on the CPU.
+    "voice": "af_heart",
+    "stt_model": "Systran/faster-whisper-medium",
+    # Extra names the voice server answers to, e.g. your machine's tailscale name.
+    "allowed_hosts": [],
 }
 
 
@@ -105,9 +113,15 @@ def load(home: Path | str | None = None, **overrides) -> Config:
         embed_model = None
     num_ctx = int(values["num_ctx"])
     allow_load = str(values["allow_load"]).lower() in ("1", "true", "yes")
+    hosts = values["allowed_hosts"]
+    if isinstance(hosts, str):
+        hosts = [h for h in hosts.split(",") if h.strip()]
     return Config(
         home=home,
         chat=Endpoint(require_local(values["chat_url"]), values["chat_model"], num_ctx, allow_load),
         check=Endpoint(require_local(values["check_url"]), values["check_model"], num_ctx, allow_load),
         embed_model=embed_model,
+        voice=values["voice"],
+        stt_model=values["stt_model"],
+        allowed_hosts=tuple(h.strip().lower() for h in hosts),
     )

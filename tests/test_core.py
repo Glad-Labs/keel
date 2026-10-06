@@ -477,6 +477,17 @@ class SalvageSafetyTests(Tmp):
         self.assertIn("doctor", reply.text)
 
 
+class SecondPersonTests(unittest.TestCase):
+    def test_profile_lines_are_read_back_as_you(self):
+        from keel.harness import second_person
+
+        self.assertEqual(
+            second_person("when I'm low I hide, and talking to people is what helps"),
+            "when you're low you hide, and talking to people is what helps",
+        )
+        self.assertEqual(second_person("running makes me kinder to everyone, including me"), "running makes you kinder to everyone, including you")
+
+
 class ReadBackTests(Tmp):
     def test_falls_back_to_their_own_words(self):
         llm = FakeLLM(replies=["You told me Dev called you a genius on Monday."] * 3)

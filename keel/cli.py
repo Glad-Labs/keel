@@ -170,6 +170,38 @@ def cmd_reindex(cfg, args) -> int:
     return 0
 
 
+def cmd_serve(cfg, args) -> int:
+    import ipaddress
+
+    from . import server, voice
+
+    try:
+        if not ipaddress.ip_address(args.host).is_loopback:
+            raise ValueError
+    except ValueError:
+        print(
+            f"Keel only listens on this machine (127.0.0.1), not {args.host}. "
+            "To reach it from your phone, put it behind `tailscale serve`.",
+            file=sys.stderr,
+        )
+        return 2
+    if not voice.available():
+        print('Voice needs the voice extra: uv pip install -e ".[voice]"', file=sys.stderr)
+        return 1
+    print("Loading the speech models (on the CPU)...", flush=True)
+    voice.warm(cfg.stt_model)
+    keel = server.Keel(cfg, voice, voice=cfg.voice, stt_model=cfg.stt_model)
+    httpd = server.make_server(keel, args.host, args.port, cfg.allowed_hosts)
+    print(f"Keel is listening at http://{args.host}:{args.port}/ (Ctrl-C to stop)", flush=True)
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print()
+    finally:
+        httpd.server_close()
+    return 0
+
+
 def cmd_doctor(cfg, args) -> int:
     ok = True
     print(f"Journal: {cfg.home}")
@@ -202,6 +234,7 @@ def cmd_doctor(cfg, args) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="keel", description="A journal that talks back, on your own machine.")
+    parser.add_argument("--home", help="where the journal lives (default ~/.keel, or $KEEL_HOME)")
     sub = parser.add_subparsers(dest="command", required=True)
     chat = sub.add_parser("chat", help="talk to your journal")
     chat.add_argument("--debug", action="store_true", help="show what the check pass found")
@@ -219,10 +252,13 @@ def main(argv: list[str] | None = None) -> int:
     forget.add_argument("entry", type=int)
     sub.add_parser("reindex", help="embed entries that are missing one")
     sub.add_parser("doctor", help="check models, search and the profile repo")
+    serve = sub.add_parser("serve", help="talk by voice in a browser")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8095)
 
     args = parser.parse_args(argv)
     try:
-        cfg = config.load()
+        cfg = config.load(args.home)
         handler = globals()[f"cmd_{args.command}"]
         return handler(cfg, args)
     except config.LocalOnlyError as err:

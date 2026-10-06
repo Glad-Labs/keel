@@ -7,17 +7,22 @@ It runs on your own machine, and nothing leaves it.
 
 "Keel" is a working name.
 
-This is version 0. You talk to it by typing. Voice and the phone app come next.
+This is version 0. You can talk to it by voice in a browser on this computer,
+or by typing. Reaching it from your phone comes next.
 
 ## Try it
 
 ```bash
 cd keel
-uv venv && uv pip install -e ".[embed]"
+uv venv && uv pip install -e ".[embed,voice]"
 .venv/bin/keel doctor      # checks the models, search, and the profile repo
 .venv/bin/keel interview   # fourteen questions about your life, then your first profile
-.venv/bin/keel chat
+.venv/bin/keel serve       # talk by voice at http://127.0.0.1:8095/
+.venv/bin/keel chat        # or by typing, in the terminal
 ```
+
+To try it on made-up data first, build the demo journal with
+`.venv/bin/python -m evals.demo .demo-home` and add `--home .demo-home` to any command.
 
 Things you can say in a chat:
 
@@ -52,6 +57,28 @@ Your journal lives in `~/.keel` and is never stored in this repo.
 The rules it follows are in [keel/RULES.md](keel/RULES.md). That file is sent
 to the model word for word, so editing it changes Keel.
 
+## Voice
+
+`keel serve` runs a small server on 127.0.0.1:8095 with a hold-to-talk page.
+Hold the circle (or Space) and talk, or tap once to start and again to stop.
+Whisper (medium) hears you and Kokoro answers, both on the CPU, so speech never
+touches the GPUs. On this machine a turn takes about 9 seconds once warm: about
+2 to hear, 5 to 7 to think, and 1 to speak. The first turn after starting is
+slower.
+
+What you say aloud is kept as a recording next to its entry in
+`~/.keel/audio`, and deleted along with the entry. Questions and commands aren't
+entries, so their recordings aren't kept.
+
+Because the server holds your journal, it only answers to localhost names.
+That stops a web page from reaching it by pointing its own domain at 127.0.0.1.
+Every API call also needs an `X-Keel` header, which a cross-site request can't
+send. Browsers only allow the microphone on localhost or https, so using it from
+a phone means going through `tailscale serve`. That isn't set up yet.
+
+The voice is Kokoro's `af_heart`. Change it with `voice = "am_michael"` (or any of
+its 54 voices) in `~/.keel/config.toml`.
+
 ## How a reply is made
 
 1. Keyword and meaning search finds candidate entries and profile lines.
@@ -67,15 +94,16 @@ journal. They cover commitments, corrections, lifting you up, recall, an
 invented-memory trap, the modes, crisis handling, medication and deletion. The
 latest report is in `evals/results/`.
 
-Results on `qwen3-vl:30b-a3b-instruct`, the model kept loaded on the 3090, on 2026-10-06:
+Results on `qwen3-vl:30b-a3b-instruct`, the model kept loaded on the 3090,
+on 2026-10-06. The model's output is sampled, so each run differs a little.
 
 - **The hard lines held in every run:** the crisis reply, deletion, "hold me to", corrections, medication pointing to a doctor, and saying it's an AI.
-- **Grading:** plain checks passed 18 of 20 and the grader model passed 17. I read every reply myself: 15 good, 4 middling, 1 bad.
-- **Speed:** the median reply takes 6.5 seconds.
+- **Latest run:** plain checks passed 19 of 20, and so did the grader model. I read every reply myself and found 13 good, 4 middling and 3 weak. Earlier runs came out at 13 to 15 good.
+- **Speed:** the median reply takes 4.2 seconds of thinking.
 - **What still goes wrong:**
   - It stretches commitments, treating "cut a feature" as breaking "no new projects".
-  - Now and then it adds a detail that isn't in the journal, in a sentence the checks can't tie to an entry.
-  - The fallbacks are safe but flat.
+  - Now and then it changes a detail, like "called Ana" when the journal says they walked.
+  - When every draft fails its checks, the fallback ("Tell me more about what's going on") is safe but flat.
 - **Don't trust the grader model alone.** It passed replies with invented memories until it was given the journal to check against, and it still misses some. Read the transcripts.
 
 To run the tests: `.venv/bin/python -m evals.run --model qwen3-vl:30b-a3b-instruct`.
@@ -100,7 +128,7 @@ with no failures. To compare models, pick a quiet window and run:
 
 ## Not built yet
 
-- **Voice.** Speech in and out, and the phone app over Tailscale. Kokoro and Whisper are already running here behind the speech server on port 8001.
+- **The phone.** Putting `keel serve` behind `tailscale serve` (private to your tailnet, with the https the microphone needs), or a small app.
 - **A schedule for the profile update.** `keel nightly` and `keel review` only run when you call them.
 - **A LoRA**, for a mode where it talks as you.
 
@@ -109,6 +137,8 @@ with no failures. To compare models, pick a quiet window and run:
 | Path | What |
 |---|---|
 | `keel/harness.py` | One conversation: commands, crisis, picking, drafting, checking, salvage |
+| `keel/server.py`, `keel/web/` | The voice server and the hold-to-talk page |
+| `keel/voice.py` | Whisper and Kokoro, on the CPU |
 | `keel/recall.py` | Picks what from your past bears on what you said |
 | `keel/checks.py` | Every check a reply goes through |
 | `keel/safety.py` | Crisis screen, labels, doses, fallbacks |

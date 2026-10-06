@@ -138,6 +138,20 @@ def _ordinal(day: int) -> str:
     return f"{day}{'th' if 10 <= day % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')}"
 
 
+SECOND_PERSON = [
+    (r"\bI'm\b", "you're"), (r"\bI am\b", "you are"), (r"\bI've\b", "you've"), (r"\bI'd\b", "you'd"),
+    (r"\bI'll\b", "you'll"), (r"\bI was\b", "you were"), (r"\bmyself\b", "yourself"), (r"\bmy\b", "your"),
+    (r"\bmine\b", "yours"), (r"\bme\b", "you"), (r"\bI\b", "you"),
+]
+
+
+def second_person(line: str) -> str:
+    """Profile lines are written as "I ..."; read back to you, they need "you"."""
+    for pattern, replacement in SECOND_PERSON:
+        line = re.sub(pattern, replacement, line)
+    return line
+
+
 def read_back(picked, said: str) -> str:
     """Their own words, with the real dates. Can't invent anything, by construction."""
     parts = []
@@ -148,10 +162,11 @@ def read_back(picked, said: str) -> str:
         elif item.line:
             line = TAG.sub("", item.line)
             line = re.sub(r"\s*\((?:[A-Z][a-z]{2} \d{1,2}, \d{4})\)\s*", " ", line).strip().rstrip(".")
+            line = second_person(f"{line[:1].lower()}{line[1:]}")
             if item.section == "Hold me to":
-                parts.append(f"You asked me to hold you to this: {line[:1].lower()}{line[1:]}.")
+                parts.append(f"You asked me to hold you to this: {line}.")
             else:
-                parts.append(f"You've told me: {line[:1].lower()}{line[1:]}.")
+                parts.append(f"You've told me that {line}.")
     ending = "What do you make of that now?" if is_question(said) else "How does that sit with what you just said?"
     return " ".join([*parts, ending])
 
@@ -201,6 +216,10 @@ class Session:
         self.last_entry_id: int | None = None
         self._past_intro = False
 
+    def _take_audio(self) -> str | None:
+        audio, self._audio = getattr(self, "_audio", None), None
+        return audio
+
     def now(self) -> datetime:
         if callable(self._now):
             return self._now()
@@ -211,7 +230,10 @@ class Session:
 
     # the turn ------------------------------------------------------------
 
-    def turn(self, said: str) -> Reply:
+    def turn(self, said: str, audio_path: str | None = None) -> Reply:
+        """One exchange. audio_path is the recording it came from, if any; it's
+        kept with the entry (and deleted with it), and unused otherwise."""
+        self._audio = audio_path
         start = time.monotonic()
         said = original = safety.plain(said).strip()
         now = self.now()
@@ -220,7 +242,7 @@ class Session:
 
         # A crisis comes first, whatever else was said.
         if safety.crisis(said):
-            entry_id = self.store.add_entry(said, when=now)
+            entry_id = self.store.add_entry(said, when=now, audio_path=self._take_audio())
             self.last_entry_id = entry_id
             self.mode, self.as_of = "care", None
             return self._finish(said, safety.CRISIS_REPLY, entry_id, [], {"crisis": "screen"}, start)
@@ -268,7 +290,7 @@ class Session:
         # or talking to your past self.
         entry_id = None
         if self.mode != "past" and not is_question(said):
-            entry_id = self.store.add_entry(said, when=now)
+            entry_id = self.store.add_entry(said, when=now, audio_path=self._take_audio())
             self.last_entry_id = entry_id
         return self._respond(said, entry_id, start)
 
@@ -480,7 +502,7 @@ class Session:
     def _hold(self, said: str, what: str, start: float) -> Reply:
         now = self.now()
         what = what.strip().rstrip(".")
-        entry_id = self.store.add_entry(f"Hold me to this: {what}.", kind="hold", when=now)
+        entry_id = self.store.add_entry(f"Hold me to this: {what}.", kind="hold", when=now, audio_path=self._take_audio())
         self.last_entry_id = entry_id
         line = f"- {what[:1].upper()}{what[1:]}. ({now:%b} {now.day}, {now.year}) [e:{entry_id}]"
         self.profile.add_line("Hold me to", line, f"hold me to [e:{entry_id}]", when=now)
@@ -491,7 +513,7 @@ class Session:
             return self._ack(said, "What's the true version? Tell me and I'll fix it in your profile.", start)
         now = self.now()
         what = what.strip().rstrip(".")
-        entry_id = self.store.add_entry(f"That's not true: {what}.", kind="correction", when=now)
+        entry_id = self.store.add_entry(f"That's not true: {what}.", kind="correction", when=now, audio_path=self._take_audio())
         self.last_entry_id = entry_id
         line = f"- {what[:1].upper()}{what[1:]}. ({now:%b} {now.day}, {now.year}) [e:{entry_id}]"
         self.profile.add_line("Corrections", line, f"correction [e:{entry_id}]", when=now)

@@ -8,3 +8,4 @@ build/
 *.db-journal
 me.md
 !evals/fixture/me.md
+.demo-home/

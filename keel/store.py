@@ -73,7 +73,9 @@ class Store:
     def __init__(self, path: Path | str, embed_model: str | None = None):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(self.path)
+        # The voice server answers each request on its own thread; it serializes
+        # turns per conversation, so one connection can be shared safely.
+        self.db = sqlite3.connect(self.path, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         # Deleted rows are overwritten with zeros instead of left in free pages.
         self.db.execute("PRAGMA secure_delete = ON")
