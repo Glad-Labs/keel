@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+# Your journal lives in ~/.keel, never in this repo. These are belt and braces.
+*.db
+*.db-journal
+me.md
+!evals/fixture/me.md

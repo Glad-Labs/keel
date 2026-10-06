@@ -1,0 +1,23 @@
+[project]
+name = "keel"
+version = "0.1.0"
+description = "A journal that talks back, running on your own machine. Nothing leaves it."
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+# Search by meaning, on the CPU. Without it Keel searches by keyword.
+embed = ["fastembed>=0.4"]
+
+[project.scripts]
+keel = "keel.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["keel"]
+
+[tool.setuptools.package-data]
+keel = ["RULES.md"]
